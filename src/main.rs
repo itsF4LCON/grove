@@ -5,10 +5,12 @@ use grove::cache;
 use grove::canvas::ColorDepth;
 use grove::demo::demo_repos;
 use grove::github::{self, FetchOpts};
+use grove::model::RepoStats;
 use grove::print::render_print;
-use grove::source::{Freshness, Loaded, load_with};
+use grove::source::{Freshness, Loaded, PrintPlan, load_with, print_plan};
 use grove::ui::{self, Refresher, app::App, status_for};
 use std::process::ExitCode;
+use std::process::{Command, Stdio};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -46,6 +48,9 @@ struct Cli {
     /// Disable growth animation and falling leaves
     #[arg(long)]
     still: bool,
+    /// Internal: refresh the cache silently (spawned by --print when it is stale)
+    #[arg(long, hide = true)]
+    warm_cache: bool,
 }
 
 fn main() -> ExitCode {
@@ -58,22 +63,58 @@ fn main() -> ExitCode {
     }
 }
 
-/// Loads repos from cache or GitHub. Short network timeout when a cache can cover for us.
-fn loader(opts: FetchOpts, print: bool) -> impl Fn(bool) -> Result<Loaded> + Send + Sync + 'static {
+/// Loads repos from cache or GitHub.
+fn loader(opts: FetchOpts) -> impl Fn(bool) -> Result<Loaded> + Send + Sync + 'static {
     move |refresh| {
         let now = Utc::now();
         let path = cache::default_path();
-        load_with(
-            path.as_deref(),
-            &opts.cache_key(),
-            now,
-            refresh,
-            |have_cache| {
-                let secs = if print && have_cache { 3 } else { 20 };
-                github::fetch(&opts, now, Duration::from_secs(secs))
-            },
-        )
+        load_with(path.as_deref(), &opts.cache_key(), now, refresh, |_| {
+            github::fetch(&opts, now, Duration::from_secs(20))
+        })
     }
+}
+
+/// Repos for `--print`: the cache when there is one (warming it in the background if stale),
+/// otherwise a blocking fetch.
+fn print_repos(
+    opts: &FetchOpts,
+    refresh: bool,
+    load: &impl Fn(bool) -> Result<Loaded>,
+) -> Result<Vec<RepoStats>> {
+    let now = Utc::now();
+    let cached = cache::default_path().and_then(|p| cache::load(&p, &opts.cache_key()));
+    match print_plan(cached.as_ref(), now, refresh) {
+        PrintPlan::UseCache { warm } => {
+            if warm {
+                spawn_warmer(opts);
+            }
+            Ok(cached.map(|c| c.repos).unwrap_or_default())
+        }
+        PrintPlan::Fetch => Ok(load(refresh)?.repos),
+    }
+}
+
+/// Detached `grove --warm-cache` with the same repo filters; failures are silent by design.
+fn spawn_warmer(opts: &FetchOpts) {
+    let Ok(exe) = std::env::current_exe() else {
+        return;
+    };
+    let mut cmd = Command::new(exe);
+    cmd.arg("--warm-cache");
+    if let Some(o) = &opts.owner {
+        cmd.args(["--user", o]);
+    }
+    if opts.include_forks {
+        cmd.arg("--include-forks");
+    }
+    if opts.include_archived {
+        cmd.arg("--include-archived");
+    }
+    let _ = cmd
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn();
 }
 
 fn run(cli: Cli) -> Result<()> {
@@ -84,13 +125,18 @@ fn run(cli: Cli) -> Result<()> {
         include_forks: cli.include_forks,
         include_archived: cli.include_archived,
     };
-    let load = loader(opts, cli.print);
+    let load = loader(opts.clone());
+
+    if cli.warm_cache {
+        load(true)?;
+        return Ok(());
+    }
 
     if cli.print {
         let repos = if cli.demo {
             demo_repos(now)
         } else {
-            load(cli.refresh)?.repos
+            print_repos(&opts, cli.refresh, &load)?
         };
         let width = cli
             .width
