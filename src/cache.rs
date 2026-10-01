@@ -50,7 +50,12 @@ mod tests {
     }
 
     fn file(key: &str, at: DateTime<Utc>) -> CacheFile {
-        CacheFile { key: key.into(), owner: "me".into(), fetched_at: at, repos: vec![RepoStats::sample("a", now())] }
+        CacheFile {
+            key: key.into(),
+            owner: "me".into(),
+            fetched_at: at,
+            repos: vec![RepoStats::sample("a", now())],
+        }
     }
 
     #[test]

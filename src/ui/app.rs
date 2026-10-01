@@ -1,8 +1,8 @@
 //! Interactive state: selection, scrolling, sorting, growth reveal, falling leaves.
 
 use crate::canvas::Cell;
-use crate::forest::{layout, ForestLayout};
-use crate::mapping::{params_for, Season};
+use crate::forest::{ForestLayout, layout};
+use crate::mapping::{Season, params_for};
 use crate::model::{Ci, RepoStats};
 use crate::print::build_trees;
 use crate::tree::grow::{Part, Tree};
@@ -55,10 +55,12 @@ impl SortKey {
 
 pub fn sort_repos(repos: &mut [RepoStats], key: SortKey) {
     match key {
-        SortKey::Pushed => repos.sort_by(|a, b| b.pushed_at.cmp(&a.pushed_at)),
-        SortKey::Activity => {
-            repos.sort_by(|a, b| b.recent_commits.cmp(&a.recent_commits).then(b.pushed_at.cmp(&a.pushed_at)))
-        }
+        SortKey::Pushed => repos.sort_by_key(|r| std::cmp::Reverse(r.pushed_at)),
+        SortKey::Activity => repos.sort_by(|a, b| {
+            b.recent_commits
+                .cmp(&a.recent_commits)
+                .then(b.pushed_at.cmp(&a.pushed_at))
+        }),
         SortKey::Stars => repos.sort_by(|a, b| b.stars.cmp(&a.stars).then(a.name.cmp(&b.name))),
         SortKey::Name => repos.sort_by_key(|r| r.name.to_lowercase()),
     }
@@ -101,7 +103,13 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(owner: String, repos: Vec<RepoStats>, now: DateTime<Utc>, tree_height: i32, still: bool) -> App {
+    pub fn new(
+        owner: String,
+        repos: Vec<RepoStats>,
+        now: DateTime<Utc>,
+        tree_height: i32,
+        still: bool,
+    ) -> App {
         let mut app = App {
             owner,
             repos,
@@ -119,7 +127,7 @@ impl App {
             loading: false,
             sheds: Vec::new(),
             ticks: 0,
-            rng: Rng::new(0x6772_6f76_65),
+            rng: Rng::new(0x0067_726f_7665),
             now,
         };
         app.rebuild();
@@ -144,7 +152,8 @@ impl App {
             .iter()
             .map(|r| {
                 let p = params_for(r, self.now);
-                matches!(p.season, Season::Autumn | Season::LateAutumn) || (p.blossoms > 0.0 && p.season != Season::Winter)
+                matches!(p.season, Season::Autumn | Season::LateAutumn)
+                    || (p.blossoms > 0.0 && p.season != Season::Winter)
             })
             .collect();
         self.particles.clear();
@@ -191,7 +200,9 @@ impl App {
 
     /// Scrolls just enough to keep the selected trunk away from the edges.
     pub fn follow(&mut self, view_width: i32) {
-        let Some(&b) = self.layout.bases.get(self.selected) else { return };
+        let Some(&b) = self.layout.bases.get(self.selected) else {
+            return;
+        };
         let margin = (view_width / 4).min(20);
         if b - self.scroll_x < margin {
             self.scroll_x = b - margin;
@@ -200,7 +211,9 @@ impl App {
             self.scroll_x = b - view_width + margin;
         }
         let max_scroll = (self.layout.total_width - view_width).max(0);
-        self.scroll_x = self.scroll_x.clamp(0, max_scroll.max(b - view_width + margin).max(0));
+        self.scroll_x = self
+            .scroll_x
+            .clamp(0, max_scroll.max(b - view_width + margin).max(0));
     }
 
     pub fn tick(&mut self, view_width: i32) {
@@ -232,7 +245,10 @@ impl App {
         let candidates: Vec<usize> = (0..self.trees.len())
             .filter(|&i| {
                 let b = self.layout.bases[i] - self.scroll_x;
-                self.sheds[i] && b > -20 && b < view_width + 20 && self.revealed[i] == self.trees[i].writes.len()
+                self.sheds[i]
+                    && b > -20
+                    && b < view_width + 20
+                    && self.revealed[i] == self.trees[i].writes.len()
             })
             .collect();
         if candidates.is_empty() {
@@ -249,7 +265,12 @@ impl App {
         }
         let w = **self.rng.pick(&leafy);
         if w.y + 1 < 0 {
-            self.particles.push(Particle { x: self.layout.bases[i] + w.x, y: w.y + 1, cell: w.cell, age: 0 });
+            self.particles.push(Particle {
+                x: self.layout.bases[i] + w.x,
+                y: w.y + 1,
+                cell: w.cell,
+                age: 0,
+            });
         }
     }
 }
@@ -274,14 +295,19 @@ pub fn detail_lines(r: &RepoStats, now: DateTime<Utc>) -> Vec<String> {
         Ci::Unknown => "—",
     };
     let mut lines = vec![
-        r.description.clone().unwrap_or_else(|| "(no description)".into()),
+        r.description
+            .clone()
+            .unwrap_or_else(|| "(no description)".into()),
         String::new(),
         format!("language     {}", r.language.as_deref().unwrap_or("—")),
         format!("stars/forks  ★ {}   forks {}", r.stars, r.forks),
         format!("open         {} PRs · {} issues", r.open_prs, r.open_issues),
         format!("CI           {ci}"),
         format!("last push    {}", ago(now - r.pushed_at)),
-        format!("commits      {} in last 90d · {} total", r.recent_commits, r.total_commits),
+        format!(
+            "commits      {} in last 90d · {} total",
+            r.recent_commits, r.total_commits
+        ),
     ];
     if r.archived {
         lines.push("status       archived".into());

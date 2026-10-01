@@ -72,7 +72,11 @@ pub struct Canvas {
 
 impl Canvas {
     pub fn new(width: usize, height: usize) -> Canvas {
-        Canvas { width, height, cells: vec![None; width * height] }
+        Canvas {
+            width,
+            height,
+            cells: vec![None; width * height],
+        }
     }
 
     pub fn width(&self) -> usize {
@@ -107,7 +111,9 @@ impl Canvas {
     pub fn to_plain(&self) -> String {
         let mut out = String::new();
         for y in 0..self.height {
-            let line: String = (0..self.width).map(|x| self.get(x, y).map_or(' ', |c| c.ch)).collect();
+            let line: String = (0..self.width)
+                .map(|x| self.get(x, y).map_or(' ', |c| c.ch))
+                .collect();
             out.push_str(line.trim_end());
             out.push('\n');
         }
@@ -120,7 +126,9 @@ impl Canvas {
         }
         let mut out = String::new();
         for y in 0..self.height {
-            let last = (0..self.width).rev().find(|&x| self.get(x, y).is_some_and(|c| c.ch != ' '));
+            let last = (0..self.width)
+                .rev()
+                .find(|&x| self.get(x, y).is_some_and(|c| c.ch != ' '));
             if let Some(last) = last {
                 let mut cur: Option<(Rgb, bool)> = None;
                 for x in 0..=last {
@@ -133,7 +141,11 @@ impl Canvas {
                                 }
                                 match depth {
                                     ColorDepth::TrueColor => {
-                                        let _ = write!(out, "\x1b[38;2;{};{};{}m", c.fg.0, c.fg.1, c.fg.2);
+                                        let _ = write!(
+                                            out,
+                                            "\x1b[38;2;{};{};{}m",
+                                            c.fg.0, c.fg.1, c.fg.2
+                                        );
                                     }
                                     _ => {
                                         let _ = write!(out, "\x1b[38;5;{}m", c.fg.to_ansi256());
@@ -159,7 +171,11 @@ mod tests {
     use super::*;
 
     fn c(ch: char) -> Cell {
-        Cell { ch, fg: Rgb(10, 20, 30), bold: false }
+        Cell {
+            ch,
+            fg: Rgb(10, 20, 30),
+            bold: false,
+        }
     }
 
     #[test]
@@ -182,7 +198,15 @@ mod tests {
     #[test]
     fn ansi_truecolor_and_256() {
         let mut cv = Canvas::new(2, 1);
-        cv.set(0, 0, Cell { ch: 'x', fg: Rgb(255, 0, 0), bold: true });
+        cv.set(
+            0,
+            0,
+            Cell {
+                ch: 'x',
+                fg: Rgb(255, 0, 0),
+                bold: true,
+            },
+        );
         let t = cv.to_ansi(ColorDepth::TrueColor);
         assert!(t.contains("\x1b[1m") && t.contains("\x1b[38;2;255;0;0mx"));
         let p = cv.to_ansi(ColorDepth::Ansi256);

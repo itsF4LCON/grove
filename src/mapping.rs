@@ -98,7 +98,10 @@ mod tests {
     fn seed_is_stable_per_repo_and_differs_between_repos() {
         let a = RepoStats::sample("a", now());
         let b = RepoStats::sample("b", now());
-        assert_eq!(params_for(&a, now()).seed, params_for(&a.clone(), now()).seed);
+        assert_eq!(
+            params_for(&a, now()).seed,
+            params_for(&a.clone(), now()).seed
+        );
         assert_ne!(params_for(&a, now()).seed, params_for(&b, now()).seed);
     }
 

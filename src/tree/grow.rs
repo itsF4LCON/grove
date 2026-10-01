@@ -7,7 +7,7 @@
 
 use crate::canvas::{Cell, Rgb};
 use crate::mapping::{Season, TreeParams};
-use crate::tree::palette::{palette_for, Palette};
+use crate::tree::palette::{Palette, palette_for};
 use crate::tree::rng::Rng;
 
 pub const MAX_WRITES: usize = 6000;
@@ -144,8 +144,12 @@ impl Grower<'_> {
             Kind::Trunk => {
                 if life < m {
                     self.branch(x, y, Kind::Dying, m + 4);
-                } else if age > total / 4 && age % m == 0 && self.rng.chance(0.85) {
-                    let k = if self.next_left { Kind::ShootLeft } else { Kind::ShootRight };
+                } else if age > total / 4 && age.is_multiple_of(m) && self.rng.chance(0.85) {
+                    let k = if self.next_left {
+                        Kind::ShootLeft
+                    } else {
+                        Kind::ShootRight
+                    };
                     self.next_left = !self.next_left;
                     let shoot_life = (life / 2 + self.rng.below(m)).max(m + 2);
                     self.branch(x, y, k, shoot_life);
@@ -230,7 +234,11 @@ impl Grower<'_> {
     }
 
     fn leaf(&mut self, x: i32, y: i32) {
-        let blossoms = if self.p.season == Season::Winter { 0.0 } else { self.p.blossoms };
+        let blossoms = if self.p.season == Season::Winter {
+            0.0
+        } else {
+            self.p.blossoms
+        };
         if self.rng.chance(blossoms) {
             let i = self.rng.below(2) as usize;
             let (ch, fg) = (self.pal.blossom_chars[i], self.pal.blossom[i]);
@@ -259,14 +267,24 @@ impl Grower<'_> {
         if y > -1 || y < self.top || self.writes.len() >= MAX_WRITES {
             return;
         }
-        self.writes.push(Write { x, y, cell: Cell { ch, fg, bold }, part });
+        self.writes.push(Write {
+            x,
+            y,
+            cell: Cell { ch, fg, bold },
+            part,
+        });
     }
 
     fn finish(self) -> Tree {
         let min_x = self.writes.iter().map(|w| w.x).min().unwrap_or(0);
         let max_x = self.writes.iter().map(|w| w.x).max().unwrap_or(0);
         let height = self.writes.iter().map(|w| -w.y).max().unwrap_or(0);
-        Tree { writes: self.writes, min_x, max_x, height }
+        Tree {
+            writes: self.writes,
+            min_x,
+            max_x,
+            height,
+        }
     }
 }
 
@@ -306,7 +324,11 @@ mod tests {
         for seed in 0..30 {
             for max_h in [3, 5, 12, 22] {
                 let t = grow(&params(seed, 40, Season::Summer), max_h);
-                assert!(t.height <= max_h, "seed {seed} max {max_h} height {}", t.height);
+                assert!(
+                    t.height <= max_h,
+                    "seed {seed} max {max_h} height {}",
+                    t.height
+                );
                 assert!(t.writes.iter().all(|w| w.y <= -1 && w.y >= -max_h));
             }
         }
@@ -366,7 +388,13 @@ mod tests {
 
     #[test]
     fn every_glyph_is_single_width() {
-        for season in [Season::Spring, Season::Summer, Season::Autumn, Season::LateAutumn, Season::Winter] {
+        for season in [
+            Season::Spring,
+            Season::Summer,
+            Season::Autumn,
+            Season::LateAutumn,
+            Season::Winter,
+        ] {
             let mut p = params(11, 40, season);
             p.blossoms = 0.3;
             p.blight = true;

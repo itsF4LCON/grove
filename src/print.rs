@@ -1,26 +1,39 @@
 //! One-shot rendering of the forest to a string (for `--print` and shell greetings).
 
 use crate::canvas::{Canvas, ColorDepth, Rgb};
-use crate::forest::{layout, render, Scene, LABEL_MAX};
+use crate::forest::{LABEL_MAX, Scene, layout, render};
 use crate::mapping::params_for;
 use crate::model::RepoStats;
-use crate::tree::grow::{grow, Tree};
+use crate::tree::grow::{Tree, grow};
 use chrono::{DateTime, Utc};
 
 pub const PRINT_TREE_HEIGHT: i32 = 22;
 
 pub fn build_trees(repos: &[RepoStats], now: DateTime<Utc>, max_height: i32) -> Vec<Tree> {
-    repos.iter().map(|r| grow(&params_for(r, now), max_height)).collect()
+    repos
+        .iter()
+        .map(|r| grow(&params_for(r, now), max_height))
+        .collect()
 }
 
 pub fn labels(repos: &[RepoStats]) -> Vec<(String, Option<Rgb>)> {
     repos
         .iter()
-        .map(|r| (r.name.clone(), r.language_color.as_deref().and_then(Rgb::from_hex)))
+        .map(|r| {
+            (
+                r.name.clone(),
+                r.language_color.as_deref().and_then(Rgb::from_hex),
+            )
+        })
         .collect()
 }
 
-pub fn render_print(repos: &[RepoStats], now: DateTime<Utc>, width: usize, depth: ColorDepth) -> String {
+pub fn render_print(
+    repos: &[RepoStats],
+    now: DateTime<Utc>,
+    width: usize,
+    depth: ColorDepth,
+) -> String {
     if repos.is_empty() {
         return "grove: no repositories to grow\n".to_string();
     }
@@ -38,7 +51,17 @@ pub fn render_print(repos: &[RepoStats], now: DateTime<Utc>, width: usize, depth
     let names = labels(&repos[..fit]);
     let tallest = trees.iter().map(|t| t.height).max().unwrap_or(0);
     let mut canvas = Canvas::new(width, tallest as usize + 3);
-    render(&Scene { trees, layout: &lay, labels: &names, revealed: None, selected: None }, &mut canvas, 0);
+    render(
+        &Scene {
+            trees,
+            layout: &lay,
+            labels: &names,
+            revealed: None,
+            selected: None,
+        },
+        &mut canvas,
+        0,
+    );
     canvas.to_ansi(depth)
 }
 
@@ -54,7 +77,10 @@ mod tests {
 
     #[test]
     fn empty_repo_list_is_friendly() {
-        assert_eq!(render_print(&[], now(), 80, ColorDepth::None), "grove: no repositories to grow\n");
+        assert_eq!(
+            render_print(&[], now(), 80, ColorDepth::None),
+            "grove: no repositories to grow\n"
+        );
     }
 
     #[test]

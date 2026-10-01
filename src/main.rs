@@ -6,14 +6,18 @@ use grove::canvas::ColorDepth;
 use grove::demo::demo_repos;
 use grove::github::{self, FetchOpts};
 use grove::print::render_print;
-use grove::source::{load_with, Freshness, Loaded};
-use grove::ui::{self, app::App, status_for, Refresher};
-use std::sync::Arc;
+use grove::source::{Freshness, Loaded, load_with};
+use grove::ui::{self, Refresher, app::App, status_for};
 use std::process::ExitCode;
+use std::sync::Arc;
 use std::time::Duration;
 
 #[derive(Parser)]
-#[command(name = "grove", version, about = "Your GitHub repos, grown as a bonsai forest")]
+#[command(
+    name = "grove",
+    version,
+    about = "Your GitHub repos, grown as a bonsai forest"
+)]
 struct Cli {
     /// Print one static snapshot and exit (good for a shell greeting)
     #[arg(long)]
@@ -59,10 +63,16 @@ fn loader(opts: FetchOpts, print: bool) -> impl Fn(bool) -> Result<Loaded> + Sen
     move |refresh| {
         let now = Utc::now();
         let path = cache::default_path();
-        load_with(path.as_deref(), &opts.cache_key(), now, refresh, |have_cache| {
-            let secs = if print && have_cache { 3 } else { 20 };
-            github::fetch(&opts, now, Duration::from_secs(secs))
-        })
+        load_with(
+            path.as_deref(),
+            &opts.cache_key(),
+            now,
+            refresh,
+            |have_cache| {
+                let secs = if print && have_cache { 3 } else { 20 };
+                github::fetch(&opts, now, Duration::from_secs(secs))
+            },
+        )
     }
 }
 
@@ -77,10 +87,18 @@ fn run(cli: Cli) -> Result<()> {
     let load = loader(opts, cli.print);
 
     if cli.print {
-        let repos = if cli.demo { demo_repos(now) } else { load(cli.refresh)?.repos };
+        let repos = if cli.demo {
+            demo_repos(now)
+        } else {
+            load(cli.refresh)?.repos
+        };
         let width = cli
             .width
-            .or_else(|| ratatui::crossterm::terminal::size().ok().map(|(w, _)| w as usize))
+            .or_else(|| {
+                ratatui::crossterm::terminal::size()
+                    .ok()
+                    .map(|(w, _)| w as usize)
+            })
             .unwrap_or(100);
         print!("{}", render_print(&repos, now, width, depth));
         return Ok(());
@@ -91,13 +109,24 @@ fn run(cli: Cli) -> Result<()> {
         app.status = "demo data".into();
         let r: Refresher = Arc::new(|| {
             let now = Utc::now();
-            Ok(Loaded { owner: "demo".into(), repos: demo_repos(now), fetched_at: now, freshness: Freshness::Fetched })
+            Ok(Loaded {
+                owner: "demo".into(),
+                repos: demo_repos(now),
+                fetched_at: now,
+                freshness: Freshness::Fetched,
+            })
         });
         (app, r)
     } else {
         eprintln!("grove: growing your forest…");
         let loaded = load(cli.refresh)?;
-        let mut app = App::new(loaded.owner.clone(), loaded.repos.clone(), now, 20, cli.still);
+        let mut app = App::new(
+            loaded.owner.clone(),
+            loaded.repos.clone(),
+            now,
+            20,
+            cli.still,
+        );
         app.status = status_for(&loaded, now);
         (app, Arc::new(move || load(true)))
     };

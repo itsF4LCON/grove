@@ -17,10 +17,26 @@ pub struct Palette {
 
 pub fn palette_for(season: Season, tint: Option<Rgb>) -> Palette {
     let (leaves, leaf_chars, leaf_factor): (Vec<u32>, &'static [char], f32) = match season {
-        Season::Spring => (vec![0x9BE564, 0x7BD389, 0xB5E48C, 0x80ED99], &['&', '&', '%', '*'], 0.9),
-        Season::Summer => (vec![0x2D6A4F, 0x40916C, 0x52B788, 0x1B4332, 0x74C69D], &['&', '&', '&', '%', '@'], 1.0),
-        Season::Autumn => (vec![0xE76F51, 0xF4A261, 0xE9C46A, 0xD62828, 0xBC6C25], &['&', '%', '*', '&'], 0.8),
-        Season::LateAutumn => (vec![0x7F5539, 0x9C6644, 0xB08968, 0xDDB892], &['\'', ',', '.', '`'], 0.35),
+        Season::Spring => (
+            vec![0x9BE564, 0x7BD389, 0xB5E48C, 0x80ED99],
+            &['&', '&', '%', '*'],
+            0.9,
+        ),
+        Season::Summer => (
+            vec![0x2D6A4F, 0x40916C, 0x52B788, 0x1B4332, 0x74C69D],
+            &['&', '&', '&', '%', '@'],
+            1.0,
+        ),
+        Season::Autumn => (
+            vec![0xE76F51, 0xF4A261, 0xE9C46A, 0xD62828, 0xBC6C25],
+            &['&', '%', '*', '&'],
+            0.8,
+        ),
+        Season::LateAutumn => (
+            vec![0x7F5539, 0x9C6644, 0xB08968, 0xDDB892],
+            &['\'', ',', '.', '`'],
+            0.35,
+        ),
         Season::Winter => (vec![0xE0E6EF, 0xF8F9FA, 0xC9D6DF], &['*', '.', '\''], 0.15),
     };
     let leaves = leaves

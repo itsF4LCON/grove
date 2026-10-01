@@ -1,10 +1,10 @@
 //! Fetches repo stats from the GitHub GraphQL API.
 
 use crate::model::{Ci, RepoStats};
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use chrono::{DateTime, Duration, SecondsFormat, Utc};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 const ENDPOINT: &str = "https://api.github.com/graphql";
 const MAX_PAGES: usize = 20;
@@ -58,12 +58,22 @@ pub fn token_from(env: Option<String>, gh: impl FnOnce() -> Option<String>) -> R
 
 pub fn token() -> Result<String> {
     token_from(std::env::var("GITHUB_TOKEN").ok(), || {
-        let out = std::process::Command::new("gh").args(["auth", "token"]).output().ok()?;
-        out.status.success().then(|| String::from_utf8_lossy(&out.stdout).into_owned())
+        let out = std::process::Command::new("gh")
+            .args(["auth", "token"])
+            .output()
+            .ok()?;
+        out.status
+            .success()
+            .then(|| String::from_utf8_lossy(&out.stdout).into_owned())
     })
 }
 
-pub fn variables(opts: &FetchOpts, login: &str, after: Option<&str>, since: DateTime<Utc>) -> Value {
+pub fn variables(
+    opts: &FetchOpts,
+    login: &str,
+    after: Option<&str>,
+    since: DateTime<Utc>,
+) -> Value {
     json!({
         "login": login,
         "after": after,
@@ -183,7 +193,8 @@ fn to_stats(n: Node) -> RepoStats {
         Some(t) => (
             t.history.map_or(0, |c| c.total_count),
             t.recent.map_or(0, |c| c.total_count),
-            t.status_check_rollup.map_or(Ci::Unknown, |r| ci_from(&r.state)),
+            t.status_check_rollup
+                .map_or(Ci::Unknown, |r| ci_from(&r.state)),
         ),
         None => (0, 0, Ci::Unknown),
     };
@@ -210,12 +221,17 @@ fn to_stats(n: Node) -> RepoStats {
 }
 
 pub fn parse_page(body: &str) -> Result<(Vec<RepoStats>, Option<String>)> {
-    let resp: Resp<OwnerData> = serde_json::from_str(body).context("unexpected response from GitHub")?;
+    let resp: Resp<OwnerData> =
+        serde_json::from_str(body).context("unexpected response from GitHub")?;
     let owner = check_errors(resp)?
         .repository_owner
         .context("no GitHub user or organization with that login")?;
     let conn = owner.repositories;
-    let next = if conn.page_info.has_next_page { conn.page_info.end_cursor } else { None };
+    let next = if conn.page_info.has_next_page {
+        conn.page_info.end_cursor
+    } else {
+        None
+    };
     Ok((conn.nodes.into_iter().map(to_stats).collect(), next))
 }
 
@@ -233,7 +249,10 @@ fn post(client: &reqwest::blocking::Client, token: &str, body: &Value) -> Result
         bail!("GitHub rejected the token (401): run `gh auth login` or set a valid GITHUB_TOKEN");
     }
     if !status.is_success() {
-        bail!("GitHub API returned {status}: {}", text.chars().take(200).collect::<String>());
+        bail!(
+            "GitHub API returned {status}: {}",
+            text.chars().take(200).collect::<String>()
+        );
     }
     Ok(text)
 }
@@ -248,14 +267,21 @@ struct Viewer {
     login: String,
 }
 
-pub fn fetch(opts: &FetchOpts, now: DateTime<Utc>, timeout: std::time::Duration) -> Result<(String, Vec<RepoStats>)> {
+pub fn fetch(
+    opts: &FetchOpts,
+    now: DateTime<Utc>,
+    timeout: std::time::Duration,
+) -> Result<(String, Vec<RepoStats>)> {
     let token = token()?;
-    let client = reqwest::blocking::Client::builder().timeout(timeout).build()?;
+    let client = reqwest::blocking::Client::builder()
+        .timeout(timeout)
+        .build()?;
     let login = match &opts.owner {
         Some(l) => l.clone(),
         None => {
             let body = post(&client, &token, &json!({ "query": "{viewer{login}}" }))?;
-            let resp: Resp<ViewerData> = serde_json::from_str(&body).context("unexpected response from GitHub")?;
+            let resp: Resp<ViewerData> =
+                serde_json::from_str(&body).context("unexpected response from GitHub")?;
             check_errors(resp)?.viewer.login
         }
     };
@@ -302,7 +328,10 @@ mod tests {
         let e = &repos[2];
         assert!(e.empty);
         assert_eq!(e.total_commits, 0);
-        assert_eq!(e.pushed_at, e.created_at, "null pushedAt falls back to createdAt");
+        assert_eq!(
+            e.pushed_at, e.created_at,
+            "null pushedAt falls back to createdAt"
+        );
     }
 
     #[test]
@@ -319,14 +348,21 @@ mod tests {
 
     #[test]
     fn graphql_errors_are_surfaced() {
-        let err = parse_page(r#"{"data":null,"errors":[{"message":"Bad credentials"}]}"#).unwrap_err();
+        let err =
+            parse_page(r#"{"data":null,"errors":[{"message":"Bad credentials"}]}"#).unwrap_err();
         assert!(format!("{err:#}").contains("Bad credentials"));
     }
 
     #[test]
     fn ci_states_map() {
-        for (s, ci) in [("SUCCESS", Ci::Passing), ("FAILURE", Ci::Failing), ("ERROR", Ci::Failing),
-                        ("PENDING", Ci::Pending), ("EXPECTED", Ci::Pending), ("WEIRD", Ci::Unknown)] {
+        for (s, ci) in [
+            ("SUCCESS", Ci::Passing),
+            ("FAILURE", Ci::Failing),
+            ("ERROR", Ci::Failing),
+            ("PENDING", Ci::Pending),
+            ("EXPECTED", Ci::Pending),
+            ("WEIRD", Ci::Unknown),
+        ] {
             assert_eq!(ci_from(s), ci);
         }
     }
@@ -334,7 +370,11 @@ mod tests {
     #[test]
     fn variables_respect_filters() {
         let since = Utc.with_ymd_and_hms(2026, 7, 3, 0, 0, 0).unwrap();
-        let mut o = FetchOpts { owner: None, include_forks: false, include_archived: false };
+        let mut o = FetchOpts {
+            owner: None,
+            include_forks: false,
+            include_archived: false,
+        };
         let v = variables(&o, "me", None, since);
         assert_eq!(v["isFork"], serde_json::json!(false));
         assert_eq!(v["isArchived"], serde_json::json!(false));
@@ -350,18 +390,37 @@ mod tests {
 
     #[test]
     fn token_resolution_order() {
-        assert_eq!(token_from(Some(" abc ".into()), || panic!("gh not needed")).unwrap(), "abc");
-        assert_eq!(token_from(Some("  ".into()), || Some("fromgh".into())).unwrap(), "fromgh");
-        assert_eq!(token_from(None, || Some("fromgh\n".into())).unwrap(), "fromgh");
+        assert_eq!(
+            token_from(Some(" abc ".into()), || panic!("gh not needed")).unwrap(),
+            "abc"
+        );
+        assert_eq!(
+            token_from(Some("  ".into()), || Some("fromgh".into())).unwrap(),
+            "fromgh"
+        );
+        assert_eq!(
+            token_from(None, || Some("fromgh\n".into())).unwrap(),
+            "fromgh"
+        );
         let err = token_from(None, || None).unwrap_err();
         assert!(format!("{err:#}").contains("gh auth login"));
     }
 
     #[test]
     fn cache_key_distinguishes_options() {
-        let a = FetchOpts { owner: None, include_forks: false, include_archived: false };
-        let b = FetchOpts { owner: Some("ratatui".into()), ..a.clone() };
-        let c = FetchOpts { include_forks: true, ..a.clone() };
+        let a = FetchOpts {
+            owner: None,
+            include_forks: false,
+            include_archived: false,
+        };
+        let b = FetchOpts {
+            owner: Some("ratatui".into()),
+            ..a.clone()
+        };
+        let c = FetchOpts {
+            include_forks: true,
+            ..a.clone()
+        };
         assert_ne!(a.cache_key(), b.cache_key());
         assert_ne!(a.cache_key(), c.cache_key());
     }
