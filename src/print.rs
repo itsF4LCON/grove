@@ -51,6 +51,12 @@ pub fn render_print(
     let names = labels(&repos[..fit]);
     let tallest = trees.iter().map(|t| t.height).max().unwrap_or(0);
     let mut canvas = Canvas::new(width, tallest as usize + 3);
+    // When only one tree fits, centre its trunk instead of leaving it off-canvas.
+    let scroll_x = if fit == 1 {
+        (lay.bases[0] - width as i32 / 2).max(0)
+    } else {
+        0
+    };
     render(
         &Scene {
             trees,
@@ -60,7 +66,7 @@ pub fn render_print(
             selected: None,
         },
         &mut canvas,
-        0,
+        scroll_x,
     );
     canvas.to_ansi(depth)
 }
@@ -92,6 +98,23 @@ mod tests {
                 assert!(line.chars().count() <= width, "width {width}: {line:?}");
             }
         }
+    }
+
+    #[test]
+    fn narrow_width_still_shows_a_tree_and_truncated_label() {
+        let repos = demo_repos(now());
+        for width in [8, 14, 20] {
+            let out = render_print(&repos, now(), width, ColorDepth::None);
+            let lines: Vec<&str> = out.lines().collect();
+            let above_ground = &lines[..lines.len() - 3];
+            assert!(
+                above_ground.iter().any(|l| !l.trim().is_empty()),
+                "width {width}: no tree drawn"
+            );
+        }
+        let out = render_print(&repos, now(), 10, ColorDepth::None);
+        let label = out.lines().last().unwrap();
+        assert!(label.contains('…'), "label should be ellipsized: {label:?}");
     }
 
     #[test]

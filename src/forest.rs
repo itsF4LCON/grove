@@ -44,11 +44,18 @@ pub fn layout(trees: &[Tree]) -> ForestLayout {
 }
 
 pub fn label(name: &str) -> String {
-    if name.chars().count() <= LABEL_MAX {
+    label_within(name, LABEL_MAX)
+}
+
+/// Truncates to at most `max` chars, ending in `…` when cut.
+fn label_within(name: &str, max: usize) -> String {
+    if name.chars().count() <= max {
         name.to_string()
+    } else if max == 0 {
+        String::new()
     } else {
         name.chars()
-            .take(LABEL_MAX - 1)
+            .take(max - 1)
             .chain(std::iter::once('…'))
             .collect()
     }
@@ -102,9 +109,14 @@ pub fn render(scene: &Scene, canvas: &mut Canvas, scroll_x: i32) {
     }
 
     for (i, (name, dot)) in scene.labels.iter().enumerate() {
-        let text = label(name);
-        let len = text.chars().count() as i32 + if dot.is_some() { 2 } else { 0 };
+        let dot_w = if dot.is_some() { 2 } else { 0 };
+        // Narrow canvases get a shorter label rather than one cut off by the edge.
+        let text = label_within(name, LABEL_MAX.min(canvas.width().saturating_sub(dot_w)));
+        let len = (text.chars().count() + dot_w) as i32;
         let mut x = scene.layout.bases[i] - scroll_x - len / 2;
+        if scene.labels.len() == 1 {
+            x = x.clamp(0, (canvas.width() as i32 - len).max(0));
+        }
         let selected = scene.selected == Some(i);
         if let Some(c) = dot {
             canvas.set(
