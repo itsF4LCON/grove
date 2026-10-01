@@ -77,6 +77,12 @@ mod tests {
     }
 
     #[test]
+    fn approved_look_snapshot() {
+        let out = render_print(&demo_repos(now()), now(), 160, ColorDepth::None);
+        insta::assert_snapshot!(out);
+    }
+
+    #[test]
     fn color_depth_none_has_no_escapes() {
         let out = render_print(&demo_repos(now()), now(), 120, ColorDepth::None);
         assert!(!out.contains('\x1b'));
