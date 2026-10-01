@@ -107,25 +107,32 @@ impl Grower<'_> {
                     3 => 1,
                     _ => 0,
                 };
-                (dx, if r.chance(0.7) { -1 } else { 0 })
+                (dx, if r.chance(0.8) { -1 } else { 0 })
             }
             Kind::ShootLeft | Kind::ShootRight => {
                 let dir = if kind == Kind::ShootLeft { -1 } else { 1 };
                 let dx = if r.chance(0.8) { dir } else { 0 };
-                let dy = match r.below(10) {
-                    0..=2 => -1,
-                    9 => 1,
+                let dy = match r.below(20) {
+                    0..=6 => -1,
+                    19 => 1,
                     _ => 0,
                 };
                 (dx, dy)
             }
             Kind::Dying => {
+                let dx = match r.below(10) {
+                    0 => -2,
+                    1..=3 => -1,
+                    6..=8 => 1,
+                    9 => 2,
+                    _ => 0,
+                };
                 let dy = match r.below(10) {
                     0..=3 => -1,
                     4..=7 => 0,
                     _ => 1,
                 };
-                (r.range(-2, 2), dy)
+                (dx, dy)
             }
             Kind::Dead => (r.range(-1, 1), r.range(-1, 1)),
         }
@@ -136,11 +143,11 @@ impl Grower<'_> {
         match kind {
             Kind::Trunk => {
                 if life < m {
-                    self.branch(x, y, Kind::Dying, m + 2);
+                    self.branch(x, y, Kind::Dying, m + 4);
                 } else if age > total / 4 && age % m == 0 && self.rng.chance(0.85) {
                     let k = if self.next_left { Kind::ShootLeft } else { Kind::ShootRight };
                     self.next_left = !self.next_left;
-                    let shoot_life = (life * 2 / 3 + self.rng.below(m)).max(m + 2);
+                    let shoot_life = (life / 2 + self.rng.below(m)).max(m + 2);
                     self.branch(x, y, k, shoot_life);
                 }
             }
@@ -152,8 +159,8 @@ impl Grower<'_> {
                 }
             }
             Kind::Dying => {
-                if self.rng.chance(0.35) {
-                    let l = self.rng.range(2, 4) as u32;
+                if self.rng.chance(0.5) {
+                    let l = self.rng.range(2, 5) as u32;
                     self.branch(x, y, Kind::Dead, l);
                 }
             }
@@ -167,12 +174,23 @@ impl Grower<'_> {
         }
         match kind {
             Kind::Trunk | Kind::ShootLeft | Kind::ShootRight => {
-                let ch = self.bark_char(dx, dy);
                 let fg = *self.rng.pick(&self.pal.bark);
                 let bold = kind == Kind::Trunk;
-                self.put(x, y, ch, fg, bold, Part::Bark);
                 if thick {
-                    self.put(x + 1, y, ch, fg, bold, Part::Bark);
+                    // A thick trunk is drawn as a short stroke centred on the path.
+                    let (stroke, from) = match dx.signum() {
+                        -1 => ("\\|", 0),
+                        1 => ("|/", -1),
+                        _ if dy == 0 => ("~_", 0),
+                        _ if self.rng.chance(0.5) => ("/|", -1),
+                        _ => ("|\\", 0),
+                    };
+                    for (i, ch) in stroke.chars().enumerate() {
+                        self.put(x + from + i as i32, y, ch, fg, bold, Part::Bark);
+                    }
+                } else {
+                    let ch = self.bark_char(dx, dy);
+                    self.put(x, y, ch, fg, bold, Part::Bark);
                 }
             }
             Kind::Dying | Kind::Dead => self.foliage(x, y, dx, dy),
@@ -198,12 +216,12 @@ impl Grower<'_> {
         let density = self.p.leaf_density * self.pal.leaf_factor;
         if self.rng.chance(density) {
             self.leaf(x, y);
-            if self.rng.chance(density * 0.6) {
+            if self.rng.chance(density) {
                 let px = x + self.rng.range(-1, 1);
                 let py = y + self.rng.range(-1, 0);
                 self.leaf(px, py);
             }
-        } else {
+        } else if self.pal.leaf_factor < 0.5 && self.rng.chance(0.45) {
             // A bare twig shows through: this is what gives winter its skeleton.
             let ch = self.bark_char(dx, dy);
             let fg = self.pal.twig;
