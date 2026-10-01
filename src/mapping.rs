@@ -48,7 +48,7 @@ pub fn params_for(repo: &RepoStats, now: DateTime<Utc>) -> TreeParams {
     let seed = hash_str(&repo.name_with_owner);
     let days = (now - repo.pushed_at).num_days();
     let age_years = (now - repo.created_at).num_days().max(0) as f32 / 365.0;
-    let life = (8.0 + 5.0 * (repo.total_commits as f32).ln_1p() + 2.0 * age_years)
+    let life = (4.0 + 5.0 * (repo.total_commits as f32).ln_1p() + 2.0 * age_years)
         .round()
         .clamp(8.0, 40.0) as u32;
     let leaf_density = 0.35 + 0.65 * ((repo.recent_commits as f32).ln_1p() / 61f32.ln()).min(1.0);

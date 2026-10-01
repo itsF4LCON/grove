@@ -18,7 +18,7 @@ pub struct ForestLayout {
     pub total_width: i32,
 }
 
-/// Canopies may overlap by a quarter of the gap at which they would just touch.
+/// Canopies may overlap slightly: a tenth of the gap at which they would just touch.
 pub fn layout(trees: &[Tree]) -> ForestLayout {
     let mut bases = Vec::with_capacity(trees.len());
     let mut x = 0;
@@ -27,7 +27,7 @@ pub fn layout(trees: &[Tree]) -> ForestLayout {
             x = (-t.min_x).max(MIN_SPACING / 2);
         } else {
             let touching = trees[i - 1].max_x - t.min_x + 1;
-            x += (touching * 3 / 4).max(MIN_SPACING);
+            x += (touching * 9 / 10).max(MIN_SPACING);
         }
         bases.push(x);
     }
