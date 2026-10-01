@@ -11,6 +11,7 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Clear, Paragraph, Widget, Wrap};
+use unicode_width::UnicodeWidthStr;
 
 struct CanvasWidget<'a>(&'a Canvas, ColorDepth);
 
@@ -48,6 +49,27 @@ fn popup(area: Rect, w: u16, h: u16) -> Rect {
         width: w,
         height: h,
     }
+}
+
+/// Rows a line occupies when word-wrapped greedily to `width` columns.
+fn wrapped_rows(line: &str, width: usize) -> usize {
+    if width == 0 {
+        return 1;
+    }
+    let mut rows = 1;
+    let mut col = 0;
+    for word in line.split(' ') {
+        let w = word.width();
+        let needed = if col == 0 { w } else { col + 1 + w };
+        if needed <= width {
+            col = needed;
+        } else {
+            rows += 1;
+            col = w % width;
+            rows += w / width;
+        }
+    }
+    rows
 }
 
 pub fn draw(frame: &mut Frame, app: &App, depth: ColorDepth) {
@@ -98,7 +120,9 @@ pub fn draw(frame: &mut Frame, app: &App, depth: ColorDepth) {
         _ => None,
     };
     if let Some((title, lines)) = overlay {
-        let area = popup(main, 64, lines.len() as u16 + 2);
+        let inner = 64.min(main.width).saturating_sub(2) as usize;
+        let rows: usize = lines.iter().map(|l| wrapped_rows(l, inner)).sum();
+        let area = popup(main, 64, (rows + 2).min(u16::MAX as usize) as u16);
         frame.render_widget(Clear, area);
         let body: Vec<Line> = lines.into_iter().map(Line::from).collect();
         frame.render_widget(
@@ -145,6 +169,22 @@ mod tests {
         assert!(screen(&app, 100, 24).contains("last push"));
         app.toggle(Overlay::Legend);
         assert!(screen(&app, 100, 24).contains("blossoms"));
+    }
+
+    #[test]
+    fn detail_popup_fits_long_descriptions() {
+        let mut repos = demo_repos(Utc::now());
+        for r in &mut repos {
+            r.description = Some("word ".repeat(30));
+        }
+        let mut app = App::new("demo".into(), repos, Utc::now(), 18, true);
+        app.selected = 0;
+        app.toggle(Overlay::Detail);
+        for w in [100, 50] {
+            let s = screen(&app, w, 30);
+            assert!(s.contains("commits"), "width {w}: commits row clipped");
+            assert!(s.contains("esc close"), "width {w}: footer clipped");
+        }
     }
 
     #[test]
