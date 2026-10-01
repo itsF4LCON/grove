@@ -17,7 +17,27 @@ Every repo becomes a procedurally grown tree, always the same shape for the same
 
     cargo install --path .
 
-Auth: uses `GITHUB_TOKEN`, or falls back to `gh auth token`.
+## Connect your account
+
+grove shows the repos of whichever GitHub account it is signed in as. There is no
+separate login; it reuses one of these:
+
+**GitHub CLI (easiest).** If you use [`gh`](https://cli.github.com):
+
+    gh auth login
+    grove
+
+**Personal access token.** Create one under GitHub → Settings → Developer settings →
+Personal access tokens, then add it to your shell config (e.g. `~/.zshrc`):
+
+    export GITHUB_TOKEN=ghp_...
+
+- Public repos only: a token with no extra permissions is enough.
+- To include private repos, give the token read access to them (fine-grained token:
+  Metadata, Contents, Commit statuses and Checks, all read-only).
+
+If both are set, `GITHUB_TOKEN` wins. A token is needed even for viewing someone
+else's public repos with `--user` / `--org`, because GitHub's API requires one.
 
 ## Use
 
