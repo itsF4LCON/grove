@@ -2,6 +2,8 @@
 
 Your GitHub repos, grown as a forest of bonsai trees in the terminal.
 
+![grove growing a forest of bonsai trees in the terminal](assets/grove.gif)
+
 Every repo becomes a procedurally grown tree, always the same shape for the same repo:
 
 | you see | it means |
