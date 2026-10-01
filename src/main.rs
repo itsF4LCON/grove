@@ -6,7 +6,9 @@ use grove::canvas::ColorDepth;
 use grove::demo::demo_repos;
 use grove::github::{self, FetchOpts};
 use grove::print::render_print;
-use grove::source::{load_with, Loaded};
+use grove::source::{load_with, Freshness, Loaded};
+use grove::ui::{self, app::App, status_for, Refresher};
+use std::sync::Arc;
 use std::process::ExitCode;
 use std::time::Duration;
 
@@ -84,5 +86,20 @@ fn run(cli: Cli) -> Result<()> {
         return Ok(());
     }
 
-    anyhow::bail!("interactive mode is not implemented yet; use --print")
+    let (app, refresher): (App, Refresher) = if cli.demo {
+        let mut app = App::new("demo".into(), demo_repos(now), now, 20, cli.still);
+        app.status = "demo data".into();
+        let r: Refresher = Arc::new(|| {
+            let now = Utc::now();
+            Ok(Loaded { owner: "demo".into(), repos: demo_repos(now), fetched_at: now, freshness: Freshness::Fetched })
+        });
+        (app, r)
+    } else {
+        eprintln!("grove: growing your forest…");
+        let loaded = load(cli.refresh)?;
+        let mut app = App::new(loaded.owner.clone(), loaded.repos.clone(), now, 20, cli.still);
+        app.status = status_for(&loaded, now);
+        (app, Arc::new(move || load(true)))
+    };
+    ui::run(app, depth, refresher)
 }
