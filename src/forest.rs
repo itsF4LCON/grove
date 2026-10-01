@@ -2,12 +2,17 @@
 
 use crate::canvas::{Canvas, Cell, Rgb};
 use crate::tree::grow::Tree;
-use crate::tree::rng::{hash_str, Rng};
+use crate::tree::rng::{Rng, hash_str};
 
 pub const LABEL_MAX: usize = 12;
 pub const MIN_SPACING: i32 = 16;
 
-const GRASS: [Rgb; 4] = [Rgb::hex(0x3A5A40), Rgb::hex(0x588157), Rgb::hex(0x6A994E), Rgb::hex(0x344E41)];
+const GRASS: [Rgb; 4] = [
+    Rgb::hex(0x3A5A40),
+    Rgb::hex(0x588157),
+    Rgb::hex(0x6A994E),
+    Rgb::hex(0x344E41),
+];
 const SOIL: [Rgb; 3] = [Rgb::hex(0x5C4033), Rgb::hex(0x6F4E37), Rgb::hex(0x4A3728)];
 const LABEL: Rgb = Rgb::hex(0xA8B0A0);
 const LABEL_SELECTED: Rgb = Rgb::hex(0xFFE066);
@@ -42,7 +47,10 @@ pub fn label(name: &str) -> String {
     if name.chars().count() <= LABEL_MAX {
         name.to_string()
     } else {
-        name.chars().take(LABEL_MAX - 1).chain(std::iter::once('…')).collect()
+        name.chars()
+            .take(LABEL_MAX - 1)
+            .chain(std::iter::once('…'))
+            .collect()
     }
 }
 
@@ -68,14 +76,21 @@ pub fn render(scene: &Scene, canvas: &mut Canvas, scroll_x: i32) {
 
     // Back to front: tall trees behind, the selected tree always on top.
     let mut order: Vec<usize> = (0..scene.trees.len()).collect();
-    order.sort_by_key(|&i| (scene.selected == Some(i), std::cmp::Reverse(scene.trees[i].height)));
+    order.sort_by_key(|&i| {
+        (
+            scene.selected == Some(i),
+            std::cmp::Reverse(scene.trees[i].height),
+        )
+    });
     for i in order {
         let t = &scene.trees[i];
         let base = scene.layout.bases[i] - scroll_x;
         if base + t.max_x < 0 || base + t.min_x >= canvas.width() as i32 {
             continue;
         }
-        let n = scene.revealed.map_or(t.writes.len(), |r| r[i].min(t.writes.len()));
+        let n = scene
+            .revealed
+            .map_or(t.writes.len(), |r| r[i].min(t.writes.len()));
         let dim = scene.selected.is_some() && scene.selected != Some(i);
         for w in &t.writes[..n] {
             let mut cell = w.cell;
@@ -92,10 +107,24 @@ pub fn render(scene: &Scene, canvas: &mut Canvas, scroll_x: i32) {
         let mut x = scene.layout.bases[i] - scroll_x - len / 2;
         let selected = scene.selected == Some(i);
         if let Some(c) = dot {
-            canvas.set(x, gy + 2, Cell { ch: '●', fg: *c, bold: false });
+            canvas.set(
+                x,
+                gy + 2,
+                Cell {
+                    ch: '●',
+                    fg: *c,
+                    bold: false,
+                },
+            );
             x += 2;
         }
-        canvas.put_str(x, gy + 2, &text, if selected { LABEL_SELECTED } else { LABEL }, selected);
+        canvas.put_str(
+            x,
+            gy + 2,
+            &text,
+            if selected { LABEL_SELECTED } else { LABEL },
+            selected,
+        );
     }
 }
 
@@ -105,9 +134,25 @@ fn draw_ground(canvas: &mut Canvas, gy: i32, scroll_x: i32) {
         let wx = (sx + scroll_x) as i64 as u64;
         let mut r = Rng::new(hash_str("grove-ground") ^ wx.wrapping_mul(0x9E37_79B9_7F4A_7C15));
         let grass = *r.pick(&['"', '\'', ',', '.', '`', '"', ',']);
-        canvas.set(sx, gy, Cell { ch: grass, fg: *r.pick(&GRASS), bold: false });
+        canvas.set(
+            sx,
+            gy,
+            Cell {
+                ch: grass,
+                fg: *r.pick(&GRASS),
+                bold: false,
+            },
+        );
         let soil = *r.pick(&['~', '.', ':', '-', '~', '.']);
-        canvas.set(sx, gy + 1, Cell { ch: soil, fg: *r.pick(&SOIL), bold: false });
+        canvas.set(
+            sx,
+            gy + 1,
+            Cell {
+                ch: soil,
+                fg: *r.pick(&SOIL),
+                bold: false,
+            },
+        );
     }
 }
 
@@ -166,9 +211,22 @@ mod tests {
     fn render_places_labels_on_last_row() {
         let trees = vec![tree(1, 20), tree(2, 20)];
         let l = layout(&trees);
-        let labels = vec![("alpha".to_string(), None), ("beta".to_string(), Some(Rgb(1, 2, 3)))];
+        let labels = vec![
+            ("alpha".to_string(), None),
+            ("beta".to_string(), Some(Rgb(1, 2, 3))),
+        ];
         let mut cv = Canvas::new(60, 24);
-        render(&Scene { trees: &trees, layout: &l, labels: &labels, revealed: None, selected: Some(1) }, &mut cv, 0);
+        render(
+            &Scene {
+                trees: &trees,
+                layout: &l,
+                labels: &labels,
+                revealed: None,
+                selected: Some(1),
+            },
+            &mut cv,
+            0,
+        );
         let plain = cv.to_plain();
         let last = plain.lines().last().unwrap();
         assert!(last.contains("alpha") && last.contains("beta"));
@@ -181,7 +239,17 @@ mod tests {
         let l = layout(&trees);
         let labels = vec![("a".to_string(), None)];
         let mut cv = Canvas::new(40, 24);
-        render(&Scene { trees: &trees, layout: &l, labels: &labels, revealed: Some(&[0usize][..]), selected: None }, &mut cv, 0);
+        render(
+            &Scene {
+                trees: &trees,
+                layout: &l,
+                labels: &labels,
+                revealed: Some(&[0usize][..]),
+                selected: None,
+            },
+            &mut cv,
+            0,
+        );
         let plain = cv.to_plain();
         let above_ground: String = plain.lines().take(24 - 3).collect();
         assert!(above_ground.trim().is_empty());
@@ -194,7 +262,17 @@ mod tests {
         let labels = vec![("a".to_string(), None)];
         for (w, h) in [(0, 0), (1, 1), (3, 2), (10, 5)] {
             let mut cv = Canvas::new(w, h);
-            render(&Scene { trees: &trees, layout: &l, labels: &labels, revealed: None, selected: Some(0) }, &mut cv, 5);
+            render(
+                &Scene {
+                    trees: &trees,
+                    layout: &l,
+                    labels: &labels,
+                    revealed: None,
+                    selected: Some(0),
+                },
+                &mut cv,
+                5,
+            );
         }
     }
 }

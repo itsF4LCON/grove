@@ -55,8 +55,14 @@ mod tests {
 
     #[test]
     fn deterministic() {
-        let a: Vec<u64> = { let mut r = Rng::new(42); (0..5).map(|_| r.next_u64()).collect() };
-        let b: Vec<u64> = { let mut r = Rng::new(42); (0..5).map(|_| r.next_u64()).collect() };
+        let a: Vec<u64> = {
+            let mut r = Rng::new(42);
+            (0..5).map(|_| r.next_u64()).collect()
+        };
+        let b: Vec<u64> = {
+            let mut r = Rng::new(42);
+            (0..5).map(|_| r.next_u64()).collect()
+        };
         assert_eq!(a, b);
         assert_ne!(Rng::new(1).next_u64(), Rng::new(2).next_u64());
     }

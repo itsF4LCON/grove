@@ -1,16 +1,16 @@
 //! Draws the app state into a ratatui frame.
 
 use crate::canvas::{Canvas, ColorDepth};
-use crate::forest::{ground_y, render, Scene};
+use crate::forest::{Scene, ground_y, render};
 use crate::print::labels;
-use crate::ui::app::{detail_lines, App, Overlay, LEGEND};
+use crate::ui::app::{App, LEGEND, Overlay, detail_lines};
 use chrono::Utc;
+use ratatui::Frame;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Clear, Paragraph, Widget, Wrap};
-use ratatui::Frame;
 
 struct CanvasWidget<'a>(&'a Canvas, ColorDepth);
 
@@ -19,7 +19,9 @@ impl Widget for CanvasWidget<'_> {
         let (cv, depth) = (self.0, self.1);
         for y in 0..area.height.min(cv.height() as u16) {
             for x in 0..area.width.min(cv.width() as u16) {
-                let Some(c) = cv.get(x as usize, y as usize) else { continue };
+                let Some(c) = cv.get(x as usize, y as usize) else {
+                    continue;
+                };
                 let fg = match depth {
                     ColorDepth::TrueColor => Color::Rgb(c.fg.0, c.fg.1, c.fg.2),
                     ColorDepth::Ansi256 => Color::Indexed(c.fg.to_ansi256()),
@@ -29,7 +31,9 @@ impl Widget for CanvasWidget<'_> {
                 if c.bold {
                     style = style.add_modifier(Modifier::BOLD);
                 }
-                buf[(area.x + x, area.y + y)].set_char(c.ch).set_style(style);
+                buf[(area.x + x, area.y + y)]
+                    .set_char(c.ch)
+                    .set_style(style);
             }
         }
     }
@@ -38,11 +42,17 @@ impl Widget for CanvasWidget<'_> {
 fn popup(area: Rect, w: u16, h: u16) -> Rect {
     let w = w.min(area.width);
     let h = h.min(area.height);
-    Rect { x: area.x + (area.width - w) / 2, y: area.y + (area.height - h) / 2, width: w, height: h }
+    Rect {
+        x: area.x + (area.width - w) / 2,
+        y: area.y + (area.height - h) / 2,
+        width: w,
+        height: h,
+    }
 }
 
 pub fn draw(frame: &mut Frame, app: &App, depth: ColorDepth) {
-    let [main, status] = Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(frame.area());
+    let [main, status] =
+        Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(frame.area());
 
     if app.repos.is_empty() {
         let msg = Paragraph::new("no repositories to grow").centered();
@@ -72,11 +82,19 @@ pub fn draw(frame: &mut Frame, app: &App, depth: ColorDepth) {
         app.sort.label(),
         app.status
     );
-    frame.render_widget(Paragraph::new(bar).style(Style::new().fg(Color::DarkGray)), status);
+    frame.render_widget(
+        Paragraph::new(bar).style(Style::new().fg(Color::DarkGray)),
+        status,
+    );
 
     let overlay = match (app.overlay, app.selected_repo()) {
-        (Overlay::Detail, Some(r)) => Some((r.name_with_owner.clone(), detail_lines(r, Utc::now()))),
-        (Overlay::Legend, _) => Some(("legend".to_string(), LEGEND.iter().map(|s| s.to_string()).collect())),
+        (Overlay::Detail, Some(r)) => {
+            Some((r.name_with_owner.clone(), detail_lines(r, Utc::now())))
+        }
+        (Overlay::Legend, _) => Some((
+            "legend".to_string(),
+            LEGEND.iter().map(|s| s.to_string()).collect(),
+        )),
         _ => None,
     };
     if let Some((title, lines)) = overlay {
@@ -84,7 +102,9 @@ pub fn draw(frame: &mut Frame, app: &App, depth: ColorDepth) {
         frame.render_widget(Clear, area);
         let body: Vec<Line> = lines.into_iter().map(Line::from).collect();
         frame.render_widget(
-            Paragraph::new(body).wrap(Wrap { trim: false }).block(Block::bordered().title(format!(" {title} "))),
+            Paragraph::new(body)
+                .wrap(Wrap { trim: false })
+                .block(Block::bordered().title(format!(" {title} "))),
             area,
         );
     }
@@ -96,13 +116,18 @@ mod tests {
     use crate::demo::demo_repos;
     use crate::ui::app::{App, Overlay};
     use chrono::Utc;
-    use ratatui::backend::TestBackend;
     use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
 
     fn screen(app: &App, w: u16, h: u16) -> String {
         let mut term = Terminal::new(TestBackend::new(w, h)).unwrap();
         term.draw(|f| draw(f, app, ColorDepth::TrueColor)).unwrap();
-        term.backend().buffer().content().iter().map(|c| c.symbol()).collect()
+        term.backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|c| c.symbol())
+            .collect()
     }
 
     #[test]

@@ -30,19 +30,45 @@ pub fn load_with(
     fetch: impl FnOnce(bool) -> Result<(String, Vec<RepoStats>)>,
 ) -> Result<Loaded> {
     let cached = cache_path.and_then(|p| cache::load(p, key));
-    if let Some(c) = cached.as_ref().filter(|c| !refresh && cache::is_fresh(c, now)) {
-        return Ok(Loaded { owner: c.owner.clone(), repos: c.repos.clone(), fetched_at: c.fetched_at, freshness: Freshness::Fresh });
+    if let Some(c) = cached
+        .as_ref()
+        .filter(|c| !refresh && cache::is_fresh(c, now))
+    {
+        return Ok(Loaded {
+            owner: c.owner.clone(),
+            repos: c.repos.clone(),
+            fetched_at: c.fetched_at,
+            freshness: Freshness::Fresh,
+        });
     }
     match fetch(cached.is_some()) {
         Ok((owner, repos)) => {
             if let Some(p) = cache_path {
                 // A cache write failure shouldn't stop the user seeing their forest.
-                let _ = cache::save(p, &CacheFile { key: key.into(), owner: owner.clone(), fetched_at: now, repos: repos.clone() });
+                let _ = cache::save(
+                    p,
+                    &CacheFile {
+                        key: key.into(),
+                        owner: owner.clone(),
+                        fetched_at: now,
+                        repos: repos.clone(),
+                    },
+                );
             }
-            Ok(Loaded { owner, repos, fetched_at: now, freshness: Freshness::Fetched })
+            Ok(Loaded {
+                owner,
+                repos,
+                fetched_at: now,
+                freshness: Freshness::Fetched,
+            })
         }
         Err(e) => match cached {
-            Some(c) => Ok(Loaded { owner: c.owner, repos: c.repos, fetched_at: c.fetched_at, freshness: Freshness::Stale(format!("{e:#}")) }),
+            Some(c) => Ok(Loaded {
+                owner: c.owner,
+                repos: c.repos,
+                fetched_at: c.fetched_at,
+                freshness: Freshness::Stale(format!("{e:#}")),
+            }),
             None => Err(e),
         },
     }
@@ -51,7 +77,7 @@ pub fn load_with(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cache::{save, CacheFile};
+    use crate::cache::{CacheFile, save};
     use crate::model::RepoStats;
     use anyhow::anyhow;
     use chrono::{Duration, TimeZone};
@@ -61,12 +87,15 @@ mod tests {
     }
 
     fn seed_cache(path: &Path, age_min: i64) {
-        save(path, &CacheFile {
-            key: "k".into(),
-            owner: "cached-owner".into(),
-            fetched_at: now() - Duration::minutes(age_min),
-            repos: vec![RepoStats::sample("cached", now())],
-        })
+        save(
+            path,
+            &CacheFile {
+                key: "k".into(),
+                owner: "cached-owner".into(),
+                fetched_at: now() - Duration::minutes(age_min),
+                repos: vec![RepoStats::sample("cached", now())],
+            },
+        )
         .unwrap();
     }
 
