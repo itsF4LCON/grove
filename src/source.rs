@@ -22,6 +22,26 @@ pub struct Loaded {
     pub freshness: Freshness,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PrintPlan {
+    /// Print the cache now; `warm` asks for a background refresh for next time.
+    UseCache {
+        warm: bool,
+    },
+    Fetch,
+}
+
+/// `--print` must be instant in a shell greeting, so it never waits on the network
+/// when any cache exists; a stale cache is refreshed in the background instead.
+pub fn print_plan(cached: Option<&CacheFile>, now: DateTime<Utc>, refresh: bool) -> PrintPlan {
+    match cached {
+        Some(c) if !refresh => PrintPlan::UseCache {
+            warm: !cache::is_fresh(c, now),
+        },
+        _ => PrintPlan::Fetch,
+    }
+}
+
 pub fn load_with(
     cache_path: Option<&Path>,
     key: &str,
@@ -97,6 +117,26 @@ mod tests {
             },
         )
         .unwrap();
+    }
+
+    #[test]
+    fn print_plan_prefers_cache_and_warms_when_stale() {
+        let c = |age| CacheFile {
+            key: "k".into(),
+            owner: "o".into(),
+            fetched_at: now() - Duration::minutes(age),
+            repos: vec![],
+        };
+        assert_eq!(
+            print_plan(Some(&c(1)), now(), false),
+            PrintPlan::UseCache { warm: false }
+        );
+        assert_eq!(
+            print_plan(Some(&c(600)), now(), false),
+            PrintPlan::UseCache { warm: true }
+        );
+        assert_eq!(print_plan(Some(&c(1)), now(), true), PrintPlan::Fetch);
+        assert_eq!(print_plan(None, now(), false), PrintPlan::Fetch);
     }
 
     #[test]
